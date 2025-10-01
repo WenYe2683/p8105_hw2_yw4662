@@ -11,7 +11,7 @@ library(haven)
 
 ## Problem 1
 
-1. Clean the data in pols-month.csv
+### 1. Clean the data in pols-month.csv
 
 ```{r}
 pols <- read_csv("./data/pols-month.csv") %>%
@@ -32,7 +32,7 @@ pols <- read_csv("./data/pols-month.csv") %>%
 pols
 ```
 
-2. Clean the data in snp.csv
+### 2. Clean the data in snp.csv
 
 ```{r}
 snp <- read_csv("./data/snp.csv") %>%
@@ -54,7 +54,7 @@ snp <- read_csv("./data/snp.csv") %>%
 snp
 ```
 
-3. Tidy the unemployment data
+### 3. Tidy the unemployment data
 
 ```{r}
 unemp <- read_csv("./data/unemployment.csv") %>%
@@ -74,3 +74,42 @@ unemp <- read_csv("./data/unemployment.csv") %>%
 unemp
 ```
 
+### 4. Merge the datasets
+
+```{r}
+mm <- factor(month.name, levels = month.name)
+
+pols <- pols %>%
+  mutate(
+    year = as.integer(year),
+    month = factor(month, levels = levels(mm))
+  ) %>%
+  arrange(year, month)
+
+snp <- snp %>%
+  mutate(
+    year = as.integer(year),
+    month = factor(month, levels = levels(mm))
+  ) %>%
+  arrange(year, month)
+
+unemp <- unemp %>%
+  mutate(
+    year = as.integer(year),
+    month = factor(month, levels = levels(mm))
+  ) %>%
+  arrange(year, month)
+
+# Merging
+merged <- pols %>%
+  left_join(snp, by = c("year", "month")) %>%
+  left_join(unemp, by = c("year", "month"))
+
+merged
+```
+
+### 5. Comment
+
+The **pols** table contains monthly U.S. politicians counts and a `president` indicator; it spans `r min(pols$year)` - `r max(pols$year)` with `r nrow(pols)` rows. The **snp** table adds monthly S&P returns, and the **unemp** table provides monthly unemployment rates for `r length(unique(unemp$year))` years.
+
+After merging on `year` and `month`, the resulting dataset has `r nrow(merged)` rows × `r ncol(merged)` columns; key variables include `year`, `month`, `president`, `unemployment`, and the S&P return column from `close`.
