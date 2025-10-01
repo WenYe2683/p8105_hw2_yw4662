@@ -54,3 +54,23 @@ snp <- read_csv("./data/snp.csv") %>%
 snp
 ```
 
+3. Tidy the unemployment data
+
+```{r}
+unemp <- read_csv("./data/unemployment.csv") %>%
+  clean_names() %>%
+  pivot_longer(
+    cols = jan:dec,
+    names_to = "month",
+    values_to = "unemployment"
+  ) %>%
+  mutate(
+    year = as.integer(year),
+    month = str_to_title(month.name[match(month, tolower(month.abb))]) # matching
+  ) %>%
+  relocate(year, month, .before = 1) %>%
+  arrange(year, match(month, month.name))
+
+unemp
+```
+
