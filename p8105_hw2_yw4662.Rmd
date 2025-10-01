@@ -32,3 +32,25 @@ pols <- read_csv("./data/pols-month.csv") %>%
 pols
 ```
 
+2. Clean the data in snp.csv
+
+```{r}
+snp <- read_csv("./data/snp.csv") %>%
+  clean_names() %>%
+  
+  # Parse the data
+  mutate(date = mdy(date),
+         year = year(date),
+         mon_n = month(date)) %>%
+  mutate(month = month.name[mon_n]) %>%
+  select(-mon_n, -date) %>%
+  
+  # Make year & month leading columns
+  relocate(year, month, .before = 1) %>%
+  
+  # Arrange according to year and month
+  arrange(year, month(match(month, month.name)))
+
+snp
+```
+
