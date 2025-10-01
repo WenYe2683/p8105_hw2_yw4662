@@ -7,6 +7,8 @@ output: github_document
 library(tidyverse)
 library(janitor)
 library(haven)
+library(readxl)
+library(dplyr)
 ```
 
 ## Problem 1
@@ -15,7 +17,7 @@ library(haven)
 
 ```{r}
 pols <- read_csv("./data/pols-month.csv") %>%
-  clean_names()%>%
+  clean_names() %>%
   
   # Split mon into year, month, day as integers
   separate(mon, into = c("year", "month", "day"), sep = "-", convert = TRUE) %>%
@@ -113,3 +115,80 @@ merged
 The **pols** table contains monthly U.S. politicians counts and a `president` indicator; it spans `r min(pols$year)` - `r max(pols$year)` with `r nrow(pols)` rows. The **snp** table adds monthly S&P returns, and the **unemp** table provides monthly unemployment rates for `r length(unique(unemp$year))` years.
 
 After merging on `year` and `month`, the resulting dataset has `r nrow(merged)` rows × `r ncol(merged)` columns; key variables include `year`, `month`, `president`, `unemployment`, and the S&P return column from `close`.
+
+## Problem 2
+
+### Data cleaning
+
+```{r}
+path <- "./data/202509 Trash Wheel Collection Data.xlsx"
+
+# Mr. Trash Wheel
+mr_trash <- read_excel(
+  path,
+  sheet = "Mr. Trash Wheel",   # specify the sheet
+  range = cell_limits(c(2,1),c(NA,14)),   # omit non-data rows/columns
+  na = c("NA", ".", "")   # treat these as missing
+) %>%
+  janitor::clean_names() %>%
+  filter(!is.na(dumpster)) %>%   # keep only dumpster-specific rows
+  mutate(
+    date = as.Date(date),
+    year = year(date),
+    month_num = month(date),
+    month = month.name[month_num],
+    wheel = "Mr. Trash Wheel")
+if (!"sports_balls" %in% names(mr_trash)) mr_trash$sports_balls <- NA_integer_
+mr_trash
+
+# Professor Trash Wheel
+prof_trash <- read_excel(
+  path,
+  sheet = "Professor Trash Wheel",
+  range = cell_limits(c(2,1),c(NA,13)),
+  na = c("NA", ".", "")
+) %>%
+  clean_names() %>%
+  filter(!is.na(dumpster)) %>%
+  mutate(
+    date = as.Date(date),
+    year = year(date),
+    month_num = month(date),
+    month = month.name[month_num],
+    wheel = "Professor Trash Wheel"
+  )
+prof_trash
+
+# Gwynnda
+gwynnda <- read_excel(
+  path,
+  sheet = "Gwynns Falls Trash Wheel",
+  range = cell_limits(c(2,1), c(NA, 12)),
+  na = c("NA", ".", "")
+) %>%
+  clean_names() %>%
+  filter(!is.na(dumpster)) %>%
+  mutate(
+    date = as.Date(date),
+    year = year(date),
+    month_num = month(date),
+    month = month.name[month_num],
+    wheel = "Gwynns Falls Trash Wheel"
+  )
+gwynnda
+
+# Combine
+trash_all <- bind_rows(mr_trash, prof_trash, gwynnda) %>%
+  arrange(wheel, year, month_num)
+trash_all
+```
+
+### Commenting
+
+The combined Trash Wheel dataset contains `r nrow(trash_all)` observations spanning `r min(trash_all$year)` - `r max(trash_all$year)`. 
+
+Key variables include `weight_tons`, `volume_cubic_yards`, `cigarette_butts`, along with date categories (`year`, `month`, `date`).
+
+Across the available data, **Professor Trash Wheel** collected `r trash_all %>% filter(wheel == "Professor Trash Wheel") %>% summarise(sum(weight_tons, na.rm=TRUE)) %>% pull()` tons of trash.
+
+In **June 2022**, **Gwynnda** collected `r scales::comma(trash_all %>% filter(wheel == "Gwynns Falls Trash Wheel", year == 2022, month == "June") %>% summarise(sum(cigarette_butts, na.rm = TRUE)) %>% pull())` cigarette butts. 
