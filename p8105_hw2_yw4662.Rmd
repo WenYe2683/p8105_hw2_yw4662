@@ -1,4 +1,34 @@
 ---
-title: "p8105_hw2_yw4662"
+title: "p8105-hw2-yw4662"
 output: github_document
 ---
+
+```{r setup}
+library(tidyverse)
+library(janitor)
+library(haven)
+```
+
+## Problem 1
+
+1. Clean the data in pols-month.csv
+
+```{r}
+pols <- read_csv("./data/pols-month.csv") %>%
+  clean_names()%>%
+  
+  # Split mon into year, month, day as integers
+  separate(mon, into = c("year", "month", "day"), sep = "-", convert = TRUE) %>%
+  
+  # Replace month number with month name
+  mutate(month = month.name[month],
+         # Create president from indicator cols
+         president = if_else(prez_gop == 1, "gop", "dem"),
+         president = factor(president, levels = c("gop", "dem"))) %>%
+  
+  # Remove prez_dem, prez_gop, and day variables
+  select(-prez_dem, -prez_gop, -day)
+
+pols
+```
+
