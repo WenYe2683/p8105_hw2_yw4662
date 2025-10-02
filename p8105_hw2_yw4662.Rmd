@@ -6,12 +6,8 @@ output: github_document
 ```{r setup}
 library(tidyverse)
 library(janitor)
-library(haven)
 library(readxl)
-library(dplyr)
-library(tidyr)
-library(stringr)
-library(readr)
+library(lubridate)
 library(knitr)
 ```
 
