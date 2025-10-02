@@ -9,6 +9,10 @@ library(janitor)
 library(haven)
 library(readxl)
 library(dplyr)
+library(tidyr)
+library(stringr)
+library(readr)
+library(knitr)
 ```
 
 ## Problem 1
@@ -192,3 +196,103 @@ Key variables include `weight_tons`, `volume_cubic_yards`, `cigarette_butts`, al
 Across the available data, **Professor Trash Wheel** collected `r trash_all %>% filter(wheel == "Professor Trash Wheel") %>% summarise(sum(weight_tons, na.rm=TRUE)) %>% pull()` tons of trash.
 
 In **June 2022**, **Gwynnda** collected `r scales::comma(trash_all %>% filter(wheel == "Gwynns Falls Trash Wheel", year == 2022, month == "June") %>% summarise(sum(cigarette_butts, na.rm = TRUE)) %>% pull())` cigarette butts. 
+
+## Problem 3
+
+### 1. Import and clean the ZIP crosswalk
+```{r}
+zip <- read_csv("./data/Zip Codes.csv", show_col_types = FALSE) %>%
+  clean_names() %>%
+  mutate(zip = str_pad(as.character(zip_code), width = 5, pad = "0"))
+```
+
+### 2. Import and tidy Zillow ZORI
+
+```{r}
+zori_wide <- read_csv("./data/Zip_zori_uc_sfrcondomfr_sm_month_NYC.csv", show_col_types = FALSE) %>%
+  clean_names()
+
+if ("region_name" %in% names(zori_wide)) {
+  zori_wide <- zori_wide %>% rename(zip = region_name)
+}
+zori_wide <- zori_wide %>% mutate(zip = str_pad(as.character(zip), width = 5, side = "left", pad = "0"))
+  
+  zori <- zori_wide %>%
+    pivot_longer(
+      cols = starts_with("x20"), 
+      names_to = "date_chr",
+      values_to = "zori"
+    ) %>%
+    mutate(
+      date = ymd(str_remove(date_chr, "^x") %>% str_replace_all("_", "-")),
+      year = year(date),
+      month = month(date, label = TRUE, abbr = TRUE)
+    ) %>%
+    select(zip, date, year, month, zori, city, state, county_name, size_rank)
+```
+
+### 3. Merge data and organize
+
+```{r}
+zori_full <- zori %>%
+  left_join(zip, by = "zip") %>%
+  mutate(
+    county_src = coalesce(county_name, county),
+    borough = case_when(
+      county_src == "Bronx County" ~ "Bronx",
+      county_src == "Kings County" ~ "Brooklyn",
+      county_src == "New York County" ~ "Manhatan",
+      county_src == "Queens County" ~ "Queens",
+      county_src == "Richmond County" ~ "Staten Island",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  select(-county_src) %>%
+  relocate(zip, borough, neighborhood, county_name, city, state, .before = date)
+zori_full
+```
+
+### 4. Brief description
+
+- There are `r nrow(zori_full)` total observations.
+- There are `r n_distinct(zori_full$zip)` unique ZIP codes included.
+- There are `r n_distinct(zori_full$neighborhood)` unique neighborhoods.
+
+### 5. ZIPs in ZIP code dataset but not in Zillow dataset
+
+```{r}
+zip_only_in_code <- zip %>%
+  anti_join(zori_full %>% distinct(zip), by = "zip") %>%
+  arrange(zip)
+
+```
+
+### 6. Largest price drop for all ZIPs
+
+```{r}
+# Compute the Jan 2021 vs Jan 2020 difference per ZIP
+jan_diff <- zori_full %>%
+  filter(month == "Jan", year %in% c(2020, 2021)) %>%
+  select(zip, year, zori) %>%
+  pivot_wider(names_from = year, values_from = zori) %>%
+  mutate(across(c(`2020`, `2021`), ~as.numeric(as.character(.)))) %>%
+  transmute(zip, jan_diff_21_minus_20 = `2021` - `2020`)
+
+# Add it to zori_full
+zori_full <- zori_full %>%
+  left_join(jan_diff, by = "zip") %>%
+  mutate(jan_diff = as.numeric(jan_diff_21_minus_20))
+
+top10_drop <- zori_full %>%
+  distinct(zip, borough, neighborhood, jan_diff) %>%
+  arrange(jan_diff) %>%
+  slice_head(n = 10)
+
+kable(
+  top10_drop,
+  digits = 2,
+  col.names = c("Zip Code", "Borough", "Neighborhood", "Price Drop"),
+  caption = "Top 10 ZIP codes with largest drop in ZORI from Jan 2020 to Jan 2021"
+)
+```
+
